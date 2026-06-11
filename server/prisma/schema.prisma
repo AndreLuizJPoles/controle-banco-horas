@@ -31,6 +31,8 @@ model User {
   password        String
   role            Role        @default(USER)
   status          UserStatus  @default(PENDING)
+  workStartTime   String      @default("08:00")
+  workEndTime     String      @default("17:00")
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   hourEntries     HourEntry[] @relation("UserEntries")
@@ -38,13 +40,16 @@ model User {
 }
 
 model HourEntry {
-  id           String      @id @default(uuid())
-  userId       String
-  user         User        @relation("UserEntries", fields: [userId], references: [id])
-  date         DateTime    @db.Date
-  hours        Decimal     @db.Decimal(10, 2)
-  description  String
-  status       EntryStatus @default(PENDING)
+  id                     String      @id @default(uuid())
+  userId                 String
+  user                   User        @relation("UserEntries", fields: [userId], references: [id])
+  date                   DateTime    @db.Date
+  clockIn                String?
+  clockOut               String?
+  withMedicalCertificate Boolean     @default(false)
+  hours                  Decimal     @db.Decimal(10, 2)
+  description            String
+  status                 EntryStatus @default(PENDING)
   approvedById String?
   approvedBy   User?       @relation("ApprovedBy", fields: [approvedById], references: [id])
   approvedAt   DateTime?

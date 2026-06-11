@@ -34,11 +34,24 @@ async function getApprovedEntries(userId?: string) {
 }
 
 function entriesToCsv(entries: Awaited<ReturnType<typeof getApprovedEntries>>): string {
-  const header = ['nome_usuario', 'data', 'horas', 'descricao', 'status', 'aprovado_por'];
+  const header = [
+    'nome_usuario',
+    'data',
+    'entrada',
+    'saida',
+    'horas',
+    'com_atestado',
+    'descricao',
+    'status',
+    'aprovado_por',
+  ];
   const rows = entries.map((entry) => [
     entry.user.name,
     formatDate(entry.date),
+    entry.clockIn ?? '',
+    entry.clockOut ?? '',
     Number(entry.hours).toFixed(2),
+    entry.withMedicalCertificate ? 'sim' : 'nao',
     entry.description,
     entry.status,
     entry.approvedBy?.name ?? '',

@@ -11,6 +11,8 @@ export function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [workStartTime, setWorkStartTime] = useState('08:00');
+  const [workEndTime, setWorkEndTime] = useState('17:00');
   const [loading, setLoading] = useState(false);
   const register = useAuthStore((s) => s.register);
   const navigate = useNavigate();
@@ -20,7 +22,7 @@ export function RegisterPage() {
     setLoading(true);
 
     try {
-      await register(name, email, password);
+      await register(name, email, password, workStartTime, workEndTime);
       toast.success('Cadastro realizado! Aguardando aprovação do administrador.');
       navigate('/login');
     } catch (err) {
@@ -66,6 +68,20 @@ export function RegisterPage() {
             required
             minLength={6}
             autoComplete="new-password"
+          />
+          <Input
+            label="Horário de entrada (jornada)"
+            type="time"
+            value={workStartTime}
+            onChange={(e) => setWorkStartTime(e.target.value)}
+            required
+          />
+          <Input
+            label="Horário de saída (jornada)"
+            type="time"
+            value={workEndTime}
+            onChange={(e) => setWorkEndTime(e.target.value)}
+            required
           />
           <Button type="submit" loading={loading} className="w-full">
             Cadastrar

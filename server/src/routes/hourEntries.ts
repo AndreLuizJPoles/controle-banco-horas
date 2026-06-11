@@ -11,8 +11,8 @@ const router = Router();
 
 router.use(authenticate, requireActiveUser);
 
-router.get('/balance/:userId', requireRole(Role.ADMIN), hourEntryController.getBalance);
-router.get('/balance', hourEntryController.getBalance);
+router.get('/summary/:userId', requireRole(Role.ADMIN), hourEntryController.getSummary);
+router.get('/summary', hourEntryController.getSummary);
 router.get('/', validate(hourEntryQuerySchema, 'query'), hourEntryController.listHourEntries);
 router.post('/', requireRole(Role.USER), validate(createEntrySchema), hourEntryController.createHourEntry);
 router.patch('/:id/approve', requireRole(Role.ADMIN), hourEntryController.approveHourEntry);

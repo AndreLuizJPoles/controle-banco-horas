@@ -1,6 +1,9 @@
+import bcrypt from 'bcryptjs';
 import { UserStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middlewares/errorHandler';
+import type { AuthUser } from './authService';
+import type { ChangePasswordInput, UpdateProfileInput } from '../schemas/user';
 
 export interface SerializedUser {
   id: string;
@@ -8,6 +11,8 @@ export interface SerializedUser {
   email: string;
   role: string;
   status: UserStatus;
+  workStartTime: string;
+  workEndTime: string;
   createdAt: string;
 }
 
@@ -17,6 +22,8 @@ function serializeUser(user: {
   email: string;
   role: string;
   status: UserStatus;
+  workStartTime: string;
+  workEndTime: string;
   createdAt: Date;
 }): SerializedUser {
   return {
@@ -25,22 +32,28 @@ function serializeUser(user: {
     email: user.email,
     role: user.role,
     status: user.status,
+    workStartTime: user.workStartTime,
+    workEndTime: user.workEndTime,
     createdAt: user.createdAt.toISOString(),
   };
 }
+
+const userSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  status: true,
+  workStartTime: true,
+  workEndTime: true,
+  createdAt: true,
+} as const;
 
 export async function listUsers(status?: UserStatus): Promise<SerializedUser[]> {
   const users = await prisma.user.findMany({
     where: status ? { status } : undefined,
     orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      status: true,
-      createdAt: true,
-    },
+    select: userSelect,
   });
 
   return users.map(serializeUser);
@@ -60,14 +73,7 @@ export async function approveUser(id: string): Promise<SerializedUser> {
   const updated = await prisma.user.update({
     where: { id },
     data: { status: UserStatus.ACTIVE },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      status: true,
-      createdAt: true,
-    },
+    select: userSelect,
   });
 
   return serializeUser(updated);
@@ -87,15 +93,64 @@ export async function rejectUser(id: string): Promise<SerializedUser> {
   const updated = await prisma.user.update({
     where: { id },
     data: { status: UserStatus.REJECTED },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      status: true,
-      createdAt: true,
-    },
+    select: userSelect,
   });
 
   return serializeUser(updated);
+}
+
+export async function updateProfile(userId: string, data: UpdateProfileInput): Promise<AuthUser> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+
+  if (!user) {
+    throw new AppError('Usuário não encontrado', 404);
+  }
+
+  if (data.email && data.email !== user.email) {
+    const existing = await prisma.user.findUnique({ where: { email: data.email } });
+    if (existing) {
+      throw new AppError('E-mail já cadastrado', 409);
+    }
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.email !== undefined && { email: data.email }),
+      ...(data.workStartTime !== undefined && { workStartTime: data.workStartTime }),
+      ...(data.workEndTime !== undefined && { workEndTime: data.workEndTime }),
+    },
+  });
+
+  return {
+    id: updated.id,
+    name: updated.name,
+    email: updated.email,
+    role: updated.role,
+    status: updated.status,
+    workStartTime: updated.workStartTime,
+    workEndTime: updated.workEndTime,
+  };
+}
+
+export async function changePassword(userId: string, data: ChangePasswordInput): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+
+  if (!user) {
+    throw new AppError('Usuário não encontrado', 404);
+  }
+
+  const validPassword = await bcrypt.compare(data.currentPassword, user.password);
+
+  if (!validPassword) {
+    throw new AppError('Senha atual incorreta', 400);
+  }
+
+  const hashedPassword = await bcrypt.hash(data.newPassword, 10);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: hashedPassword },
+  });
 }

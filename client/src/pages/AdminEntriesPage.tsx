@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import api from '../services/api';
-import type { HourEntry, PaginatedResponse, User } from '../types';
+import type { HourEntry, HourSummary, PaginatedResponse, User } from '../types';
+import { formatHours, formatTime } from '../types';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { HourSummaryCards } from '../components/HourSummaryCards';
 import { Select } from '../components/Select';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Pagination, Table } from '../components/Table';
@@ -15,6 +17,12 @@ type ActionType = 'approve' | 'reject';
 export function AdminEntriesPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [summary, setSummary] = useState<HourSummary>({
+    approvedHours: 0,
+    pendingHours: 0,
+    totalHours: 0,
+  });
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [entries, setEntries] = useState<HourEntry[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -28,6 +36,26 @@ export function AdminEntriesPage() {
       .then(({ data }) => setUsers(data.users.filter((u) => u.status === 'ACTIVE')))
       .catch(() => toast.error('Erro ao carregar usuários'));
   }, []);
+
+  useEffect(() => {
+    if (!selectedUserId) {
+      setSummary({ approvedHours: 0, pendingHours: 0, totalHours: 0 });
+      return;
+    }
+
+    setSummaryLoading(true);
+    api
+      .get<HourSummary>(`/hour-entries/summary/${selectedUserId}`)
+      .then(({ data }) =>
+        setSummary({
+          approvedHours: data.approvedHours,
+          pendingHours: data.pendingHours,
+          totalHours: data.totalHours,
+        }),
+      )
+      .catch(() => toast.error('Erro ao carregar resumo'))
+      .finally(() => setSummaryLoading(false));
+  }, [selectedUserId]);
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -58,6 +86,14 @@ export function AdminEntriesPage() {
       toast.success(modal.action === 'approve' ? 'Lançamento aprovado' : 'Lançamento rejeitado');
       setModal(null);
       fetchEntries();
+      if (selectedUserId) {
+        const { data } = await api.get<HourSummary>(`/hour-entries/summary/${selectedUserId}`);
+        setSummary({
+          approvedHours: data.approvedHours,
+          pendingHours: data.pendingHours,
+          totalHours: data.totalHours,
+        });
+      }
     } catch (err) {
       const message = axios.isAxiosError(err)
         ? (err.response?.data as { error?: string })?.error ?? 'Erro na operação'
@@ -85,6 +121,14 @@ export function AdminEntriesPage() {
         />
       </div>
 
+      {selectedUserId ? (
+        <HourSummaryCards summary={summary} loading={summaryLoading} />
+      ) : (
+        <p className="mb-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Selecione um usuário para ver o resumo de horas.
+        </p>
+      )}
+
       {loading ? (
         <LoadingSpinner />
       ) : (
@@ -98,15 +142,21 @@ export function AdminEntriesPage() {
                 render: (e) => e.user?.name ?? '—',
               },
               { key: 'date', header: 'Data', render: (e) => e.date },
+              { key: 'clockIn', header: 'Entrada', render: (e) => formatTime(e.clockIn) },
+              { key: 'clockOut', header: 'Saída', render: (e) => formatTime(e.clockOut) },
               {
                 key: 'hours',
                 header: 'Horas',
                 render: (e) => (
                   <span className={e.hours >= 0 ? 'text-green-600' : 'text-red-600'}>
-                    {e.hours >= 0 ? '+' : ''}
-                    {e.hours.toFixed(1)}h
+                    {formatHours(e.hours)}
                   </span>
                 ),
+              },
+              {
+                key: 'withMedicalCertificate',
+                header: 'Atestado',
+                render: (e) => (e.withMedicalCertificate ? 'Sim' : 'Não'),
               },
               { key: 'description', header: 'Descrição', render: (e) => e.description },
               { key: 'status', header: 'Status', render: (e) => <Badge status={e.status} /> },

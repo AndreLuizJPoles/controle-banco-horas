@@ -6,8 +6,8 @@ import { useAuthStore } from './stores/authStore';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { MyEntriesPage } from './pages/MyEntriesPage';
 import { NewEntryPage } from './pages/NewEntryPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminEntriesPage } from './pages/AdminEntriesPage';
 import { ExportPage } from './pages/ExportPage';
@@ -39,8 +39,9 @@ export default function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/entries" element={<MyEntriesPage />} />
+          <Route path="/entries" element={<Navigate to="/dashboard" replace />} />
           <Route path="/entries/new" element={<NewEntryPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
 
           <Route element={<AdminRoute />}>
             <Route path="/admin/users" element={<AdminUsersPage />} />

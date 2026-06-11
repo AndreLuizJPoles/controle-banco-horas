@@ -1,10 +1,15 @@
 import { z } from 'zod';
+import { clockTimeRangeRefine, timeSchema } from './time';
 
-export const createEntrySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida (YYYY-MM-DD)'),
-  hours: z.coerce.number().refine((v) => !Number.isNaN(v), 'Horas inválidas'),
-  description: z.string().min(1, 'Descrição é obrigatória'),
-});
+export const createEntrySchema = z
+  .object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida (YYYY-MM-DD)'),
+    clockIn: timeSchema,
+    clockOut: timeSchema,
+    description: z.string().min(1, 'Descrição é obrigatória'),
+    withMedicalCertificate: z.boolean().default(false),
+  })
+  .superRefine(clockTimeRangeRefine);
 
 export const hourEntryQuerySchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

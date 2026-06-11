@@ -2,11 +2,11 @@ import { ReactNode, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Clock,
-  FileText,
   LayoutDashboard,
   LogOut,
   Menu,
   PlusCircle,
+  Settings,
   Users,
   Download,
   X,
@@ -28,8 +28,8 @@ export function Layout({ children }: LayoutProps) {
 
   const userLinks = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/entries', label: 'Meus Lançamentos', icon: FileText },
     { to: '/entries/new', label: 'Novo Lançamento', icon: PlusCircle },
+    { to: '/settings', label: 'Configurações', icon: Settings },
   ];
 
   const adminLinks = [
@@ -38,7 +38,7 @@ export function Layout({ children }: LayoutProps) {
     { to: '/admin/export', label: 'Exportação', icon: Download },
   ];
 
-  const links = isAdmin ? [...userLinks, ...adminLinks] : userLinks;
+  const links = isAdmin ? [...adminLinks] : userLinks;
 
   const handleLogout = async () => {
     await logout();

@@ -16,6 +16,24 @@ export async function listUsers(req: Request, res: Response, next: NextFunction)
   }
 }
 
+export async function updateProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const user = await userService.updateProfile(req.user!.userId, req.body);
+    res.json({ user });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function changePassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    await userService.changePassword(req.user!.userId, req.body);
+    res.json({ message: 'Senha alterada com sucesso' });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function approveUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const user = await userService.approveUser(paramId(req.params.id));

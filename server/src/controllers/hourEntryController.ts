@@ -36,7 +36,7 @@ export async function createHourEntry(req: Request, res: Response, next: NextFun
   }
 }
 
-export async function getBalance(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const userId = req.params.userId ? paramId(req.params.userId) : req.user!.userId;
 
@@ -45,8 +45,8 @@ export async function getBalance(req: Request, res: Response, next: NextFunction
       return;
     }
 
-    const result = await hourEntryService.getBalance(userId);
-    res.json({ userId, ...result });
+    const summary = await hourEntryService.getSummary(userId);
+    res.json({ userId, ...summary });
   } catch (error) {
     next(error);
   }

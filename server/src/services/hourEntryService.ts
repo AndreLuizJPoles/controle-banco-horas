@@ -1,5 +1,6 @@
 import { EntryStatus, Prisma, Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { calculateEntryHours } from '../lib/workHours';
 import { AppError } from '../middlewares/errorHandler';
 import type { CreateEntryInput } from '../schemas/hourEntry';
 
@@ -7,6 +8,9 @@ export interface SerializedHourEntry {
   id: string;
   userId: string;
   date: string;
+  clockIn: string | null;
+  clockOut: string | null;
+  withMedicalCertificate: boolean;
   hours: number;
   description: string;
   status: EntryStatus;
@@ -18,6 +22,12 @@ export interface SerializedHourEntry {
   user?: { id: string; name: string; email: string };
 }
 
+export interface HourSummary {
+  approvedHours: number;
+  pendingHours: number;
+  totalHours: number;
+}
+
 type EntryWithRelations = Prisma.HourEntryGetPayload<{
   include: {
     user: { select: { id: true; name: true; email: true } };
@@ -25,11 +35,18 @@ type EntryWithRelations = Prisma.HourEntryGetPayload<{
   };
 }>;
 
+function effectiveHours(entry: { hours: Prisma.Decimal | number }): number {
+  return Number(entry.hours);
+}
+
 function serializeEntry(entry: EntryWithRelations): SerializedHourEntry {
   return {
     id: entry.id,
     userId: entry.userId,
     date: entry.date.toISOString().split('T')[0],
+    clockIn: entry.clockIn,
+    clockOut: entry.clockOut,
+    withMedicalCertificate: entry.withMedicalCertificate,
     hours: Number(entry.hours),
     description: entry.description,
     status: entry.status,
@@ -101,11 +118,33 @@ export async function listHourEntries(params: {
 }
 
 export async function createHourEntry(userId: string, data: CreateEntryInput): Promise<SerializedHourEntry> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+
+  if (!user) {
+    throw new AppError('Usuário não encontrado', 404);
+  }
+
+  let hours: number;
+  try {
+    hours = calculateEntryHours({
+      workStart: user.workStartTime,
+      workEnd: user.workEndTime,
+      clockIn: data.clockIn,
+      clockOut: data.clockOut,
+      withMedicalCertificate: data.withMedicalCertificate,
+    });
+  } catch (error) {
+    throw new AppError(error instanceof Error ? error.message : 'Erro ao calcular horas', 400);
+  }
+
   const entry = await prisma.hourEntry.create({
     data: {
       userId,
       date: new Date(data.date),
-      hours: data.hours,
+      clockIn: data.clockIn,
+      clockOut: data.clockOut,
+      withMedicalCertificate: data.withMedicalCertificate,
+      hours,
       description: data.description,
       status: EntryStatus.PENDING,
     },
@@ -115,19 +154,41 @@ export async function createHourEntry(userId: string, data: CreateEntryInput): P
   return serializeEntry(entry);
 }
 
-export async function getBalance(userId: string): Promise<{ balance: number }> {
+export async function getSummary(userId: string): Promise<HourSummary> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
   if (!user) {
     throw new AppError('Usuário não encontrado', 404);
   }
 
-  const result = await prisma.hourEntry.aggregate({
-    where: { userId, status: EntryStatus.APPROVED },
-    _sum: { hours: true },
+  const entries = await prisma.hourEntry.findMany({
+    where: {
+      userId,
+      status: { in: [EntryStatus.APPROVED, EntryStatus.PENDING] },
+    },
+    select: { hours: true, status: true },
   });
 
-  return { balance: Number(result._sum.hours ?? 0) };
+  let approvedHours = 0;
+  let pendingHours = 0;
+
+  for (const entry of entries) {
+    const value = effectiveHours(entry);
+    if (entry.status === EntryStatus.APPROVED) {
+      approvedHours += value;
+    } else {
+      pendingHours += value;
+    }
+  }
+
+  approvedHours = Math.round(approvedHours * 100) / 100;
+  pendingHours = Math.round(pendingHours * 100) / 100;
+
+  return {
+    approvedHours,
+    pendingHours,
+    totalHours: Math.round((approvedHours + pendingHours) * 100) / 100,
+  };
 }
 
 export async function approveHourEntry(entryId: string, adminId: string): Promise<SerializedHourEntry> {

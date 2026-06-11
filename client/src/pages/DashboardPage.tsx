@@ -1,53 +1,126 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../services/api';
+import type { HourEntry, HourSummary, PaginatedResponse } from '../types';
+import { formatHours, formatTime } from '../types';
+import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
+import { HourSummaryCards } from '../components/HourSummaryCards';
+import { Input } from '../components/Input';
 import { LoadingSpinner } from '../components/LoadingSpinner';
-
-function formatBalance(balance: number): string {
-  const sign = balance >= 0 ? '+' : '';
-  return `${sign}${balance.toFixed(1)}h`;
-}
+import { Pagination, Table } from '../components/Table';
 
 export function DashboardPage() {
-  const [balance, setBalance] = useState<number | null>(null);
+  const [summary, setSummary] = useState<HourSummary>({
+    approvedHours: 0,
+    pendingHours: 0,
+    totalHours: 0,
+  });
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [entries, setEntries] = useState<HourEntry[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     api
-      .get<{ balance: number }>('/hour-entries/balance')
-      .then(({ data }) => setBalance(data.balance))
-      .catch(() => toast.error('Erro ao carregar saldo'))
-      .finally(() => setLoading(false));
+      .get<HourSummary>('/hour-entries/summary')
+      .then(({ data }) =>
+        setSummary({
+          approvedHours: data.approvedHours,
+          pendingHours: data.pendingHours,
+          totalHours: data.totalHours,
+        }),
+      )
+      .catch(() => toast.error('Erro ao carregar resumo'))
+      .finally(() => setSummaryLoading(false));
   }, []);
 
-  if (loading) return <LoadingSpinner />;
+  const fetchEntries = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string | number> = { page, limit: 10 };
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
 
-  const isPositive = (balance ?? 0) >= 0;
+      const { data } = await api.get<PaginatedResponse<HourEntry>>('/hour-entries', { params });
+      setEntries(data.data);
+      setTotalPages(data.meta.totalPages);
+    } catch {
+      toast.error('Erro ao carregar lançamentos');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, startDate, endDate]);
+
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries]);
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h2 className="text-lg font-medium text-slate-600">Saldo do Banco de Horas</h2>
-        <p
-          className={`mt-4 text-5xl font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}
-        >
-          {formatBalance(balance ?? 0)}
-        </p>
-        <p className="mt-2 text-sm text-slate-500">
-          Soma de todos os lançamentos aprovados
-        </p>
-      </div>
+    <div>
+      <HourSummaryCards summary={summary} loading={summaryLoading} />
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <Input
+            label="Data inicial"
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              setPage(1);
+            }}
+          />
+          <Input
+            label="Data final"
+            type="date"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
         <Link to="/entries/new">
           <Button>Novo Lançamento</Button>
         </Link>
-        <Link to="/entries">
-          <Button variant="secondary">Ver Lançamentos</Button>
-        </Link>
       </div>
+
+      {loading ? (
+        <LoadingSpinner />
+      ) : (
+        <>
+          <Table
+            data={entries}
+            columns={[
+              { key: 'date', header: 'Data', render: (e) => e.date },
+              { key: 'clockIn', header: 'Entrada', render: (e) => formatTime(e.clockIn) },
+              { key: 'clockOut', header: 'Saída', render: (e) => formatTime(e.clockOut) },
+              {
+                key: 'hours',
+                header: 'Horas',
+                render: (e) => (
+                  <span className={e.hours >= 0 ? 'text-green-600' : 'text-red-600'}>
+                    {formatHours(e.hours)}
+                  </span>
+                ),
+              },
+              {
+                key: 'withMedicalCertificate',
+                header: 'Atestado',
+                render: (e) => (e.withMedicalCertificate ? 'Sim' : 'Não'),
+              },
+              { key: 'description', header: 'Descrição', render: (e) => e.description },
+              { key: 'status', header: 'Status', render: (e) => <Badge status={e.status} /> },
+            ]}
+          />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+        </>
+      )}
     </div>
   );
 }

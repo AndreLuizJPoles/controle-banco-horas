@@ -11,6 +11,8 @@ export interface AuthUser {
   email: string;
   role: Role;
   status: UserStatus;
+  workStartTime: string;
+  workEndTime: string;
 }
 
 function toAuthUser(user: {
@@ -19,6 +21,8 @@ function toAuthUser(user: {
   email: string;
   role: Role;
   status: UserStatus;
+  workStartTime: string;
+  workEndTime: string;
 }): AuthUser {
   return {
     id: user.id,
@@ -26,6 +30,8 @@ function toAuthUser(user: {
     email: user.email,
     role: user.role,
     status: user.status,
+    workStartTime: user.workStartTime,
+    workEndTime: user.workEndTime,
   };
 }
 
@@ -54,6 +60,8 @@ export async function register(data: RegisterInput): Promise<AuthUser> {
       password: hashedPassword,
       role: Role.USER,
       status: UserStatus.PENDING,
+      workStartTime: data.workStartTime,
+      workEndTime: data.workEndTime,
     },
   });
 
