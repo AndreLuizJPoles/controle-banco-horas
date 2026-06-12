@@ -7,9 +7,12 @@ import { formatAdjustmentLabel, formatHours, getAdjustmentTypeLabel } from '../t
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { HourSummaryCards } from '../components/HourSummaryCards';
+import { EntryTimeline } from '../components/EntryTimeline';
 import { Input } from '../components/Input';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Pagination, Table } from '../components/Table';
+
+const ENTRIES_PAGE_SIZE = 20;
 
 export function DashboardPage() {
   const [summary, setSummary] = useState<HourSummary>({
@@ -21,6 +24,7 @@ export function DashboardPage() {
   const [entries, setEntries] = useState<HourEntry[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalEntries, setTotalEntries] = useState(0);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -42,13 +46,17 @@ export function DashboardPage() {
   const fetchEntries = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, string | number> = { page, limit: 10 };
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
+      const filterParams: Record<string, string> = {};
+      if (startDate) filterParams.startDate = startDate;
+      if (endDate) filterParams.endDate = endDate;
 
-      const { data } = await api.get<PaginatedResponse<HourEntry>>('/hour-entries', { params });
+      const { data } = await api.get<PaginatedResponse<HourEntry>>('/hour-entries', {
+        params: { ...filterParams, page, limit: ENTRIES_PAGE_SIZE },
+      });
+
       setEntries(data.data);
       setTotalPages(data.meta.totalPages);
+      setTotalEntries(data.meta.total);
     } catch {
       toast.error('Erro ao carregar lançamentos');
     } finally {
@@ -94,6 +102,27 @@ export function DashboardPage() {
         <LoadingSpinner />
       ) : (
         <>
+          <section className="mb-8">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold text-slate-900">Linha do tempo</h2>
+              {totalEntries > ENTRIES_PAGE_SIZE && (
+                <span className="text-sm text-slate-500">
+                  {totalEntries} lançamentos — página {page} de {totalPages}
+                </span>
+              )}
+            </div>
+            <EntryTimeline entries={entries} />
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+          </section>
+
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-slate-900">Lançamentos</h2>
+            {totalEntries > ENTRIES_PAGE_SIZE && (
+              <span className="text-sm text-slate-500">
+                {totalEntries} lançamentos — página {page} de {totalPages}
+              </span>
+            )}
+          </div>
           <Table
             data={entries}
             columns={[

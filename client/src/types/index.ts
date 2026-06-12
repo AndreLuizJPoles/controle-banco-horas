@@ -11,8 +11,8 @@ export interface User {
 export type Role = 'USER' | 'ADMIN';
 export type UserStatus = 'PENDING' | 'ACTIVE' | 'REJECTED';
 export type EntryStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-export type AdjustmentType = 'ENTRY' | 'EXIT' | 'DURING_DAY';
-export type DuringDayKind = 'LUNCH_EXTRA' | 'DAY_DEFICIT';
+export type AdjustmentType = 'ENTRY' | 'EXIT' | 'OTHER' | 'ABSENT';
+export type DuringDayKind = 'ADD' | 'SUBTRACT';
 
 export interface HourEntry {
   id: string;
@@ -67,8 +67,10 @@ export function getAdjustmentTypeLabel(type: AdjustmentType | null): string {
       return 'Entrada';
     case 'EXIT':
       return 'Saída';
-    case 'DURING_DAY':
-      return 'Durante o dia';
+    case 'OTHER':
+      return 'Outros';
+    case 'ABSENT':
+      return 'Não foi no dia';
   }
 }
 
@@ -87,12 +89,14 @@ export function formatAdjustmentLabel(entry: HourEntry): string {
       return entry.clockIn ?? '—';
     case 'EXIT':
       return entry.clockOut ?? '—';
-    case 'DURING_DAY': {
+    case 'OTHER': {
       const amount = entry.duringDayHours ?? 0;
-      if (entry.duringDayKind === 'LUNCH_EXTRA') {
-        return `Almoço +${amount}h`;
+      if (entry.duringDayKind === 'ADD') {
+        return `+${amount}h`;
       }
-      return `Déficit -${amount}h`;
+      return `-${amount}h`;
     }
+    case 'ABSENT':
+      return 'Dia inteiro';
   }
 }

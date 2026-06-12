@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Role } from '@prisma/client';
 import * as hourEntryService from '../services/hourEntryService';
 import { HourEntryQueryInput } from '../schemas/hourEntry';
+import type { CreateEntryInput } from '../schemas/hourEntry';
 
 function paramId(value: string | string[]): string {
   return Array.isArray(value) ? value[0] : value;
@@ -29,7 +30,8 @@ export async function listHourEntries(req: Request, res: Response, next: NextFun
 
 export async function createHourEntry(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const entry = await hourEntryService.createHourEntry(req.user!.userId, req.body);
+    const body = (req.validated?.body ?? req.body) as CreateEntryInput;
+    const entry = await hourEntryService.createHourEntry(req.user!.userId, body);
     res.status(201).json({ entry });
   } catch (error) {
     next(error);

@@ -1,8 +1,8 @@
 const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export type DuringDayKind = 'LUNCH_EXTRA' | 'DAY_DEFICIT';
+export type DuringDayKind = 'ADD' | 'SUBTRACT';
 
-export const LUNCH_EXTRA_MAX_HOURS = 1;
+export const LUNCH_BREAK_HOURS = 1;
 
 export function isValidTime(value: string): boolean {
   return TIME_REGEX.test(value);
@@ -23,12 +23,9 @@ function assertMultipleOf30Minutes(minutes: number): void {
   }
 }
 
-function assertValidDuringDayHours(hours: number, duringDayKind: DuringDayKind): void {
+function assertValidOtherHours(hours: number): void {
   if (hours < 0.5 || Math.round(hours * 2) !== hours * 2) {
     throw new Error('Quantidade deve ser múltipla de 0,5 h');
-  }
-  if (duringDayKind === 'LUNCH_EXTRA' && hours > LUNCH_EXTRA_MAX_HOURS) {
-    throw new Error('Horas a mais no almoço: máximo de 1 h (0,5 ou 1,0)');
   }
 }
 
@@ -37,6 +34,23 @@ function applyMedicalCertificate(raw: number, withMedicalCertificate: boolean): 
     return 0;
   }
   return raw;
+}
+
+export function calculateWorkDayHours(workStart: string, workEnd: string): number {
+  const minutes = timeToMinutes(workEnd) - timeToMinutes(workStart);
+  if (minutes <= 0) {
+    throw new Error('Jornada de trabalho inválida');
+  }
+  return roundHours(minutes / 60);
+}
+
+export function calculateServiceHours(workStart: string, workEnd: string): number {
+  const gross = calculateWorkDayHours(workStart, workEnd);
+  const service = roundHours(gross - LUNCH_BREAK_HOURS);
+  if (service <= 0) {
+    throw new Error('Jornada de trabalho inválida');
+  }
+  return service;
 }
 
 export function calculateEntryAdjustmentHours(
@@ -59,12 +73,69 @@ export function calculateExitAdjustmentHours(
   return applyMedicalCertificate(roundHours(diffMinutes / 60), withMedicalCertificate);
 }
 
+export function calculateOtherHours(
+  duringDayKind: DuringDayKind,
+  duringDayHours: number,
+  withMedicalCertificate = false,
+): number {
+  assertValidOtherHours(duringDayHours);
+  const raw = duringDayKind === 'ADD' ? duringDayHours : -duringDayHours;
+  return applyMedicalCertificate(roundHours(raw), withMedicalCertificate);
+}
+
+export function calculateAbsentHours(
+  workStart: string,
+  workEnd: string,
+  withMedicalCertificate = false,
+): number {
+  const raw = -calculateServiceHours(workStart, workEnd);
+  return applyMedicalCertificate(raw, withMedicalCertificate);
+}
+
+/** @deprecated Use calculateOtherHours */
 export function calculateDuringDayHours(
   duringDayKind: DuringDayKind,
   duringDayHours: number,
   withMedicalCertificate = false,
 ): number {
-  assertValidDuringDayHours(duringDayHours, duringDayKind);
-  const raw = duringDayKind === 'LUNCH_EXTRA' ? duringDayHours : -duringDayHours;
-  return applyMedicalCertificate(roundHours(raw), withMedicalCertificate);
+  return calculateOtherHours(duringDayKind, duringDayHours, withMedicalCertificate);
+}
+
+export interface CalculateHoursInput {
+  adjustmentType: 'ENTRY' | 'EXIT' | 'OTHER' | 'ABSENT';
+  workStart: string;
+  workEnd: string;
+  clockIn?: string;
+  clockOut?: string;
+  duringDayKind?: DuringDayKind;
+  duringDayHours?: number;
+}
+
+export function canUseMedicalCertificate(input: CalculateHoursInput): boolean {
+  switch (input.adjustmentType) {
+    case 'ABSENT':
+      return true;
+    case 'OTHER':
+      return input.duringDayKind === 'SUBTRACT';
+    case 'ENTRY':
+      if (!input.clockIn) {
+        return false;
+      }
+      try {
+        return calculateEntryAdjustmentHours(input.workStart, input.clockIn, false) < 0;
+      } catch {
+        return false;
+      }
+    case 'EXIT':
+      if (!input.clockOut) {
+        return false;
+      }
+      try {
+        return calculateExitAdjustmentHours(input.workEnd, input.clockOut, false) < 0;
+      } catch {
+        return false;
+      }
+    default:
+      return false;
+  }
 }

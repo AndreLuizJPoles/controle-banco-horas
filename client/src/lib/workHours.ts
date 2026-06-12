@@ -1,5 +1,7 @@
-export type AdjustmentType = 'ENTRY' | 'EXIT' | 'DURING_DAY';
-export type DuringDayKind = 'LUNCH_EXTRA' | 'DAY_DEFICIT';
+export type AdjustmentType = 'ENTRY' | 'EXIT' | 'OTHER' | 'ABSENT';
+export type DuringDayKind = 'ADD' | 'SUBTRACT';
+
+export const LUNCH_BREAK_HOURS = 1;
 
 export function timeToMinutes(time: string): number {
   const [hours, minutes] = time.split(':').map(Number);
@@ -14,16 +16,8 @@ function isMultipleOf30Minutes(minutes: number): boolean {
   return minutes !== 0 && minutes % 30 === 0;
 }
 
-export const LUNCH_EXTRA_MAX_HOURS = 1;
-
-function isValidDuringDayHours(hours: number, duringDayKind: DuringDayKind): boolean {
-  if (hours < 0.5 || Math.round(hours * 2) !== hours * 2) {
-    return false;
-  }
-  if (duringDayKind === 'LUNCH_EXTRA' && hours > LUNCH_EXTRA_MAX_HOURS) {
-    return false;
-  }
-  return true;
+function isValidOtherHours(hours: number): boolean {
+  return hours >= 0.5 && Math.round(hours * 2) === hours * 2;
 }
 
 function applyMedicalCertificate(raw: number, withMedicalCertificate: boolean): number {
@@ -31,6 +25,29 @@ function applyMedicalCertificate(raw: number, withMedicalCertificate: boolean): 
     return 0;
   }
   return raw;
+}
+
+export function calculateWorkDayHours(workStart: string, workEnd: string): number | null {
+  if (!workStart || !workEnd) {
+    return null;
+  }
+
+  const minutes = timeToMinutes(workEnd) - timeToMinutes(workStart);
+  if (minutes <= 0) {
+    return null;
+  }
+
+  return roundHours(minutes / 60);
+}
+
+export function calculateServiceHours(workStart: string, workEnd: string): number | null {
+  const gross = calculateWorkDayHours(workStart, workEnd);
+  if (gross === null) {
+    return null;
+  }
+
+  const service = roundHours(gross - LUNCH_BREAK_HOURS);
+  return service > 0 ? service : null;
 }
 
 export function calculateEntryAdjustmentHours(
@@ -67,17 +84,30 @@ export function calculateExitAdjustmentHours(
   return applyMedicalCertificate(roundHours(diffMinutes / 60), withMedicalCertificate);
 }
 
-export function calculateDuringDayHours(
+export function calculateOtherHours(
   duringDayKind: DuringDayKind,
   duringDayHours: number,
   withMedicalCertificate = false,
 ): number | null {
-  if (!isValidDuringDayHours(duringDayHours, duringDayKind)) {
+  if (!isValidOtherHours(duringDayHours)) {
     return null;
   }
 
-  const raw = duringDayKind === 'LUNCH_EXTRA' ? duringDayHours : -duringDayHours;
+  const raw = duringDayKind === 'ADD' ? duringDayHours : -duringDayHours;
   return applyMedicalCertificate(roundHours(raw), withMedicalCertificate);
+}
+
+export function calculateAbsentHours(
+  workStart: string,
+  workEnd: string,
+  withMedicalCertificate = false,
+): number | null {
+  const serviceHours = calculateServiceHours(workStart, workEnd);
+  if (serviceHours === null) {
+    return null;
+  }
+
+  return applyMedicalCertificate(-serviceHours, withMedicalCertificate);
 }
 
 export interface CalculateAdjustmentHoursInput {
@@ -107,13 +137,19 @@ export function calculateAdjustmentHours(input: CalculateAdjustmentHoursInput): 
         input.clockOut ?? '',
         withMedicalCertificate,
       );
-    case 'DURING_DAY':
+    case 'OTHER':
       if (!input.duringDayKind || input.duringDayHours === undefined) {
         return null;
       }
-      return calculateDuringDayHours(
+      return calculateOtherHours(
         input.duringDayKind,
         input.duringDayHours,
+        withMedicalCertificate,
+      );
+    case 'ABSENT':
+      return calculateAbsentHours(
+        input.workStart ?? '',
+        input.workEnd ?? '',
         withMedicalCertificate,
       );
     default:
@@ -121,9 +157,20 @@ export function calculateAdjustmentHours(input: CalculateAdjustmentHoursInput): 
   }
 }
 
-export const LUNCH_EXTRA_HOUR_OPTIONS = [0.5, 1] as const;
-export const DAY_DEFICIT_HOUR_OPTIONS = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4] as const;
+export const OTHER_HOUR_OPTIONS = Array.from({ length: 48 }, (_, index) => (index + 1) * 0.5);
 
-export function getDuringDayHourOptions(duringDayKind: DuringDayKind) {
-  return duringDayKind === 'LUNCH_EXTRA' ? LUNCH_EXTRA_HOUR_OPTIONS : DAY_DEFICIT_HOUR_OPTIONS;
+export function canUseMedicalCertificate(input: CalculateAdjustmentHoursInput): boolean {
+  switch (input.adjustmentType) {
+    case 'ABSENT':
+      return true;
+    case 'OTHER':
+      return input.duringDayKind === 'SUBTRACT';
+    case 'ENTRY':
+    case 'EXIT': {
+      const rawHours = calculateAdjustmentHours({ ...input, withMedicalCertificate: false });
+      return rawHours !== null && rawHours < 0;
+    }
+    default:
+      return false;
+  }
 }

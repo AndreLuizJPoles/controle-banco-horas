@@ -1,5 +1,5 @@
 import type { AdjustmentType, DuringDayKind } from '../types';
-import { getDuringDayHourOptions, LUNCH_EXTRA_MAX_HOURS } from '../lib/workHours';
+import { calculateServiceHours, OTHER_HOUR_OPTIONS } from '../lib/workHours';
 import { Input } from './Input';
 import { Select } from './Select';
 
@@ -9,6 +9,8 @@ interface AdjustmentTypeFieldsProps {
   clockOut: string;
   duringDayKind: DuringDayKind;
   duringDayHours: number;
+  workStartTime?: string;
+  workEndTime?: string;
   onClockInChange: (value: string) => void;
   onClockOutChange: (value: string) => void;
   onDuringDayKindChange: (value: DuringDayKind) => void;
@@ -21,6 +23,8 @@ export function AdjustmentTypeFields({
   clockOut,
   duringDayKind,
   duringDayHours,
+  workStartTime,
+  workEndTime,
   onClockInChange,
   onClockOutChange,
   onDuringDayKindChange,
@@ -52,43 +56,52 @@ export function AdjustmentTypeFields({
     );
   }
 
+  if (adjustmentType === 'ABSENT') {
+    const serviceHours = calculateServiceHours(workStartTime ?? '', workEndTime ?? '');
+
+    return (
+      <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Será descontada a jornada do dia, descontando 1 h de almoço
+        {serviceHours !== null && (
+          <span className="font-semibold"> ({serviceHours.toFixed(1).replace('.0', '')} h)</span>
+        )}
+        .
+      </div>
+    );
+  }
+
   return (
     <>
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-slate-700">Motivo</legend>
+        <legend className="text-sm font-medium text-slate-700">Operação</legend>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
             type="radio"
             name="duringDayKind"
-            value="LUNCH_EXTRA"
-            checked={duringDayKind === 'LUNCH_EXTRA'}
-            onChange={() => {
-              onDuringDayKindChange('LUNCH_EXTRA');
-              if (duringDayHours > LUNCH_EXTRA_MAX_HOURS) {
-                onDuringDayHoursChange(LUNCH_EXTRA_MAX_HOURS);
-              }
-            }}
+            value="ADD"
+            checked={duringDayKind === 'ADD'}
+            onChange={() => onDuringDayKindChange('ADD')}
             className="border-slate-300"
           />
-          Almoço (horas a mais)
+          Adicionar horas
         </label>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
             type="radio"
             name="duringDayKind"
-            value="DAY_DEFICIT"
-            checked={duringDayKind === 'DAY_DEFICIT'}
-            onChange={() => onDuringDayKindChange('DAY_DEFICIT')}
+            value="SUBTRACT"
+            checked={duringDayKind === 'SUBTRACT'}
+            onChange={() => onDuringDayKindChange('SUBTRACT')}
             className="border-slate-300"
           />
-          Outro horário (horas a menos)
+          Retirar horas
         </label>
       </fieldset>
       <Select
-        label="Quantidade"
+        label="Quantidade de horas"
         value={String(duringDayHours)}
         onChange={(e) => onDuringDayHoursChange(Number(e.target.value))}
-        options={getDuringDayHourOptions(duringDayKind).map((h) => ({
+        options={OTHER_HOUR_OPTIONS.map((h) => ({
           value: String(h),
           label: `${h}h`,
         }))}

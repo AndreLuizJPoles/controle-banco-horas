@@ -27,12 +27,13 @@ enum EntryStatus {
 enum AdjustmentType {
   ENTRY
   EXIT
-  DURING_DAY
+  OTHER
+  ABSENT
 }
 
 enum DuringDayKind {
-  LUNCH_EXTRA
-  DAY_DEFICIT
+  ADD
+  SUBTRACT
 }
 
 model User {

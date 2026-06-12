@@ -1,9 +1,11 @@
 import { EntryStatus, Prisma, Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import {
-  calculateDuringDayHours,
+  calculateAbsentHours,
   calculateEntryAdjustmentHours,
   calculateExitAdjustmentHours,
+  calculateOtherHours,
+  canUseMedicalCertificate,
 } from '../lib/workHours';
 import { AppError } from '../middlewares/errorHandler';
 import type { CreateEntryInput } from '../schemas/hourEntry';
@@ -14,8 +16,8 @@ export interface SerializedHourEntry {
   date: string;
   clockIn: string | null;
   clockOut: string | null;
-  adjustmentType: 'ENTRY' | 'EXIT' | 'DURING_DAY' | null;
-  duringDayKind: 'LUNCH_EXTRA' | 'DAY_DEFICIT' | null;
+  adjustmentType: 'ENTRY' | 'EXIT' | 'OTHER' | 'ABSENT' | null;
+  duringDayKind: 'ADD' | 'SUBTRACT' | null;
   duringDayHours: number | null;
   withMedicalCertificate: boolean;
   hours: number;
@@ -145,10 +147,16 @@ function calculateHoursForEntry(
           data.clockOut,
           data.withMedicalCertificate,
         );
-      case 'DURING_DAY':
-        return calculateDuringDayHours(
+      case 'OTHER':
+        return calculateOtherHours(
           data.duringDayKind,
           data.duringDayHours,
+          data.withMedicalCertificate,
+        );
+      case 'ABSENT':
+        return calculateAbsentHours(
+          user.workStartTime,
+          user.workEndTime,
           data.withMedicalCertificate,
         );
     }
@@ -157,11 +165,32 @@ function calculateHoursForEntry(
   }
 }
 
-export async function createHourEntry(userId: string, data: CreateEntryInput): Promise<SerializedHourEntry> {
+export async function createHourEntry(
+  userId: string,
+  data: CreateEntryInput,
+): Promise<SerializedHourEntry> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
   if (!user) {
     throw new AppError('Usuário não encontrado', 404);
+  }
+
+  if (data.withMedicalCertificate) {
+    const certificateAllowed = canUseMedicalCertificate({
+      adjustmentType: data.adjustmentType,
+      workStart: user.workStartTime,
+      workEnd: user.workEndTime,
+      ...(data.adjustmentType === 'ENTRY' && { clockIn: data.clockIn }),
+      ...(data.adjustmentType === 'EXIT' && { clockOut: data.clockOut }),
+      ...(data.adjustmentType === 'OTHER' && {
+        duringDayKind: data.duringDayKind,
+        duringDayHours: data.duringDayHours,
+      }),
+    });
+
+    if (!certificateAllowed) {
+      throw new AppError('Atestado médico só é permitido em operações de retirada de horas', 400);
+    }
   }
 
   const hours = calculateHoursForEntry(user, data);
@@ -187,9 +216,11 @@ export async function createHourEntry(userId: string, data: CreateEntryInput): P
     case 'EXIT':
       entryData.clockOut = data.clockOut;
       break;
-    case 'DURING_DAY':
+    case 'OTHER':
       entryData.duringDayKind = data.duringDayKind;
       entryData.duringDayHours = data.duringDayHours;
+      break;
+    case 'ABSENT':
       break;
   }
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
 import api from '../services/api';
-import { calculateAdjustmentHours } from '../lib/workHours';
+import { calculateAdjustmentHours, canUseMedicalCertificate } from '../lib/workHours';
 import { useAuthStore } from '../stores/authStore';
 import type { AdjustmentType, DuringDayKind } from '../types';
 import { formatHours } from '../types';
@@ -14,7 +14,8 @@ import { Input } from '../components/Input';
 const ADJUSTMENT_TYPE_OPTIONS: { value: AdjustmentType; label: string }[] = [
   { value: 'ENTRY', label: 'Na entrada' },
   { value: 'EXIT', label: 'Na saída' },
-  { value: 'DURING_DAY', label: 'Durante o dia' },
+  { value: 'OTHER', label: 'Outros' },
+  { value: 'ABSENT', label: 'Não foi no dia' },
 ];
 
 export function NewEntryPage() {
@@ -22,7 +23,7 @@ export function NewEntryPage() {
   const [adjustmentType, setAdjustmentType] = useState<AdjustmentType>('ENTRY');
   const [clockIn, setClockIn] = useState('');
   const [clockOut, setClockOut] = useState('');
-  const [duringDayKind, setDuringDayKind] = useState<DuringDayKind>('LUNCH_EXTRA');
+  const [duringDayKind, setDuringDayKind] = useState<DuringDayKind>('ADD');
   const [duringDayHours, setDuringDayHours] = useState(0.5);
   const [withMedicalCertificate, setWithMedicalCertificate] = useState(false);
   const [description, setDescription] = useState('');
@@ -36,27 +37,39 @@ export function NewEntryPage() {
     }
   }, [user, navigate]);
 
-  const previewHours = useMemo(() => {
-    if (!user) return null;
-    return calculateAdjustmentHours({
+  const certificateInput = useMemo(
+    () => ({
       adjustmentType,
-      workStart: user.workStartTime,
-      workEnd: user.workEndTime,
+      workStart: user?.workStartTime,
+      workEnd: user?.workEndTime,
       clockIn,
       clockOut,
       duringDayKind,
       duringDayHours,
-      withMedicalCertificate,
+    }),
+    [user, adjustmentType, clockIn, clockOut, duringDayKind, duringDayHours],
+  );
+
+  const showMedicalCertificate = useMemo(
+    () => (user ? canUseMedicalCertificate(certificateInput) : false),
+    [user, certificateInput],
+  );
+
+  useEffect(() => {
+    if (!showMedicalCertificate) {
+      setWithMedicalCertificate(false);
+    }
+  }, [showMedicalCertificate]);
+
+  const effectiveMedicalCertificate = showMedicalCertificate && withMedicalCertificate;
+
+  const previewHours = useMemo(() => {
+    if (!user) return null;
+    return calculateAdjustmentHours({
+      ...certificateInput,
+      withMedicalCertificate: effectiveMedicalCertificate,
     });
-  }, [
-    user,
-    adjustmentType,
-    clockIn,
-    clockOut,
-    duringDayKind,
-    duringDayHours,
-    withMedicalCertificate,
-  ]);
+  }, [user, certificateInput, effectiveMedicalCertificate]);
 
   const previewInvalid =
     adjustmentType === 'ENTRY'
@@ -76,31 +89,21 @@ export function NewEntryPage() {
     setLoading(true);
 
     try {
-      const payload =
-        adjustmentType === 'ENTRY'
-          ? {
-              adjustmentType,
-              date,
-              clockIn,
-              description,
-              withMedicalCertificate,
-            }
-          : adjustmentType === 'EXIT'
-            ? {
-                adjustmentType,
-                date,
-                clockOut,
-                description,
-                withMedicalCertificate,
-              }
-            : {
-                adjustmentType,
-                date,
-                duringDayKind,
-                duringDayHours,
-                description,
-                withMedicalCertificate,
-              };
+      const payload: Record<string, unknown> = {
+        adjustmentType,
+        date,
+        description,
+        withMedicalCertificate: effectiveMedicalCertificate,
+      };
+
+      if (adjustmentType === 'ENTRY') {
+        payload.clockIn = clockIn;
+      } else if (adjustmentType === 'EXIT') {
+        payload.clockOut = clockOut;
+      } else if (adjustmentType === 'OTHER') {
+        payload.duringDayKind = duringDayKind;
+        payload.duringDayHours = duringDayHours;
+      }
 
       await api.post('/hour-entries', payload);
       toast.success('Lançamento criado com sucesso');
@@ -156,21 +159,25 @@ export function NewEntryPage() {
             clockOut={clockOut}
             duringDayKind={duringDayKind}
             duringDayHours={duringDayHours}
+            workStartTime={user?.workStartTime}
+            workEndTime={user?.workEndTime}
             onClockInChange={setClockIn}
             onClockOutChange={setClockOut}
             onDuringDayKindChange={setDuringDayKind}
             onDuringDayHoursChange={setDuringDayHours}
           />
 
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={withMedicalCertificate}
-              onChange={(e) => setWithMedicalCertificate(e.target.checked)}
-              className="rounded border-slate-300"
-            />
-            Com atestado médico
-          </label>
+          {showMedicalCertificate && (
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={withMedicalCertificate}
+                onChange={(e) => setWithMedicalCertificate(e.target.checked)}
+                className="rounded border-slate-300"
+              />
+              Com atestado médico
+            </label>
+          )}
           <Input
             label="Descrição"
             value={description}
@@ -189,7 +196,7 @@ export function NewEntryPage() {
               <span className={previewHours >= 0 ? 'font-semibold text-green-600' : 'font-semibold text-red-600'}>
                 {formatHours(previewHours)}
               </span>
-              {withMedicalCertificate && previewHours === 0 && (
+              {effectiveMedicalCertificate && previewHours === 0 && (
                 <span className="ml-2 text-slate-500">(déficit zerado por atestado)</span>
               )}
             </div>

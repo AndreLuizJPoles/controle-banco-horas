@@ -24,18 +24,20 @@ function formatAdjustmentType(type: AdjustmentType | null): string {
       return 'entrada';
     case AdjustmentType.EXIT:
       return 'saida';
-    case AdjustmentType.DURING_DAY:
-      return 'durante_dia';
+    case AdjustmentType.OTHER:
+      return 'outros';
+    case AdjustmentType.ABSENT:
+      return 'nao_foi_no_dia';
   }
 }
 
 function formatDuringDayKind(kind: DuringDayKind | null): string {
   if (!kind) return '';
   switch (kind) {
-    case DuringDayKind.LUNCH_EXTRA:
-      return 'almoco_extra';
-    case DuringDayKind.DAY_DEFICIT:
-      return 'deficit';
+    case DuringDayKind.ADD:
+      return 'adicionar';
+    case DuringDayKind.SUBTRACT:
+      return 'retirar';
   }
 }
 
