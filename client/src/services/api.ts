@@ -28,7 +28,9 @@ api.interceptors.response.use(
         await api.post('/auth/refresh');
         return api(originalRequest);
       } catch {
-        window.dispatchEvent(new CustomEvent('auth:logout'));
+        if (!originalRequest.url?.includes('/auth/me')) {
+          window.dispatchEvent(new CustomEvent('auth:logout'));
+        }
         return Promise.reject(error);
       }
     }

@@ -1,6 +1,10 @@
 import { EntryStatus, Prisma, Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { calculateEntryHours } from '../lib/workHours';
+import {
+  calculateDuringDayHours,
+  calculateEntryAdjustmentHours,
+  calculateExitAdjustmentHours,
+} from '../lib/workHours';
 import { AppError } from '../middlewares/errorHandler';
 import type { CreateEntryInput } from '../schemas/hourEntry';
 
@@ -10,6 +14,9 @@ export interface SerializedHourEntry {
   date: string;
   clockIn: string | null;
   clockOut: string | null;
+  adjustmentType: 'ENTRY' | 'EXIT' | 'DURING_DAY' | null;
+  duringDayKind: 'LUNCH_EXTRA' | 'DAY_DEFICIT' | null;
+  duringDayHours: number | null;
   withMedicalCertificate: boolean;
   hours: number;
   description: string;
@@ -46,6 +53,9 @@ function serializeEntry(entry: EntryWithRelations): SerializedHourEntry {
     date: entry.date.toISOString().split('T')[0],
     clockIn: entry.clockIn,
     clockOut: entry.clockOut,
+    adjustmentType: entry.adjustmentType,
+    duringDayKind: entry.duringDayKind,
+    duringDayHours: entry.duringDayHours !== null ? Number(entry.duringDayHours) : null,
     withMedicalCertificate: entry.withMedicalCertificate,
     hours: Number(entry.hours),
     description: entry.description,
@@ -117,6 +127,36 @@ export async function listHourEntries(params: {
   };
 }
 
+function calculateHoursForEntry(
+  user: { workStartTime: string; workEndTime: string },
+  data: CreateEntryInput,
+): number {
+  try {
+    switch (data.adjustmentType) {
+      case 'ENTRY':
+        return calculateEntryAdjustmentHours(
+          user.workStartTime,
+          data.clockIn,
+          data.withMedicalCertificate,
+        );
+      case 'EXIT':
+        return calculateExitAdjustmentHours(
+          user.workEndTime,
+          data.clockOut,
+          data.withMedicalCertificate,
+        );
+      case 'DURING_DAY':
+        return calculateDuringDayHours(
+          data.duringDayKind,
+          data.duringDayHours,
+          data.withMedicalCertificate,
+        );
+    }
+  } catch (error) {
+    throw new AppError(error instanceof Error ? error.message : 'Erro ao calcular horas', 400);
+  }
+}
+
 export async function createHourEntry(userId: string, data: CreateEntryInput): Promise<SerializedHourEntry> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
@@ -124,30 +164,37 @@ export async function createHourEntry(userId: string, data: CreateEntryInput): P
     throw new AppError('Usuário não encontrado', 404);
   }
 
-  let hours: number;
-  try {
-    hours = calculateEntryHours({
-      workStart: user.workStartTime,
-      workEnd: user.workEndTime,
-      clockIn: data.clockIn,
-      clockOut: data.clockOut,
-      withMedicalCertificate: data.withMedicalCertificate,
-    });
-  } catch (error) {
-    throw new AppError(error instanceof Error ? error.message : 'Erro ao calcular horas', 400);
+  const hours = calculateHoursForEntry(user, data);
+
+  const entryData: Prisma.HourEntryCreateInput = {
+    user: { connect: { id: userId } },
+    date: new Date(data.date),
+    withMedicalCertificate: data.withMedicalCertificate,
+    hours,
+    description: data.description,
+    status: EntryStatus.PENDING,
+    adjustmentType: data.adjustmentType,
+    clockIn: null,
+    clockOut: null,
+    duringDayKind: null,
+    duringDayHours: null,
+  };
+
+  switch (data.adjustmentType) {
+    case 'ENTRY':
+      entryData.clockIn = data.clockIn;
+      break;
+    case 'EXIT':
+      entryData.clockOut = data.clockOut;
+      break;
+    case 'DURING_DAY':
+      entryData.duringDayKind = data.duringDayKind;
+      entryData.duringDayHours = data.duringDayHours;
+      break;
   }
 
   const entry = await prisma.hourEntry.create({
-    data: {
-      userId,
-      date: new Date(data.date),
-      clockIn: data.clockIn,
-      clockOut: data.clockOut,
-      withMedicalCertificate: data.withMedicalCertificate,
-      hours,
-      description: data.description,
-      status: EntryStatus.PENDING,
-    },
+    data: entryData,
     include: entryInclude,
   });
 

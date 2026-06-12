@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import api from '../services/api';
 import type { User } from '../types';
 
+let authSessionGeneration = 0;
+
 interface AuthState {
   user: User | null;
   isLoading: boolean;
@@ -25,7 +27,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
 
   login: async (email, password) => {
+    const generation = ++authSessionGeneration;
     const { data } = await api.post<{ user: User }>('/auth/login', { email, password });
+    if (generation !== authSessionGeneration) return data.user;
     set({ user: data.user, isAuthenticated: true, isLoading: false });
     return data.user;
   },
@@ -35,6 +39,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    authSessionGeneration++;
     try {
       await api.post('/auth/logout');
     } finally {
@@ -43,11 +48,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   fetchMe: async () => {
+    const generation = authSessionGeneration;
     try {
       set({ isLoading: true });
       const { data } = await api.get<{ user: User }>('/auth/me');
+      if (generation !== authSessionGeneration) return;
       set({ user: data.user, isAuthenticated: true, isLoading: false });
     } catch {
+      if (generation !== authSessionGeneration) return;
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },

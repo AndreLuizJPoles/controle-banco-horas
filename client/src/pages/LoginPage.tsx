@@ -21,7 +21,7 @@ export function LoginPage() {
     try {
       const user = await login(email, password);
       toast.success('Login realizado com sucesso');
-      navigate(user.role === 'ADMIN' ? '/admin/users' : '/dashboard');
+      navigate(user.role === 'ADMIN' ? '/admin/users' : '/dashboard', { replace: true });
     } catch (err) {
       const message = axios.isAxiosError(err)
         ? (err.response?.data as { error?: string })?.error ?? 'Erro ao fazer login'

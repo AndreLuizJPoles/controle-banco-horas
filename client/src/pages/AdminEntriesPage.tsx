@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import api from '../services/api';
 import type { HourEntry, HourSummary, PaginatedResponse, User } from '../types';
-import { formatHours, formatTime } from '../types';
+import { formatAdjustmentLabel, formatHours, getAdjustmentTypeLabel } from '../types';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -142,8 +142,16 @@ export function AdminEntriesPage() {
                 render: (e) => e.user?.name ?? '—',
               },
               { key: 'date', header: 'Data', render: (e) => e.date },
-              { key: 'clockIn', header: 'Entrada', render: (e) => formatTime(e.clockIn) },
-              { key: 'clockOut', header: 'Saída', render: (e) => formatTime(e.clockOut) },
+              {
+                key: 'adjustmentType',
+                header: 'Tipo',
+                render: (e) => getAdjustmentTypeLabel(e.adjustmentType),
+              },
+              {
+                key: 'detail',
+                header: 'Detalhe',
+                render: (e) => formatAdjustmentLabel(e),
+              },
               {
                 key: 'hours',
                 header: 'Horas',

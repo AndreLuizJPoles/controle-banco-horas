@@ -1,4 +1,4 @@
-import { EntryStatus } from '@prisma/client';
+import { AdjustmentType, DuringDayKind, EntryStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middlewares/errorHandler';
 
@@ -15,6 +15,28 @@ function formatDate(date: Date): string {
 
 function buildCsv(rows: string[][]): string {
   return rows.map((row) => row.map(escapeCsvField).join(',')).join('\n');
+}
+
+function formatAdjustmentType(type: AdjustmentType | null): string {
+  if (!type) return 'legado';
+  switch (type) {
+    case AdjustmentType.ENTRY:
+      return 'entrada';
+    case AdjustmentType.EXIT:
+      return 'saida';
+    case AdjustmentType.DURING_DAY:
+      return 'durante_dia';
+  }
+}
+
+function formatDuringDayKind(kind: DuringDayKind | null): string {
+  if (!kind) return '';
+  switch (kind) {
+    case DuringDayKind.LUNCH_EXTRA:
+      return 'almoco_extra';
+    case DuringDayKind.DAY_DEFICIT:
+      return 'deficit';
+  }
 }
 
 async function getApprovedEntries(userId?: string) {
@@ -37,6 +59,9 @@ function entriesToCsv(entries: Awaited<ReturnType<typeof getApprovedEntries>>): 
   const header = [
     'nome_usuario',
     'data',
+    'tipo',
+    'subtipo',
+    'duracao_dia',
     'entrada',
     'saida',
     'horas',
@@ -48,6 +73,9 @@ function entriesToCsv(entries: Awaited<ReturnType<typeof getApprovedEntries>>): 
   const rows = entries.map((entry) => [
     entry.user.name,
     formatDate(entry.date),
+    formatAdjustmentType(entry.adjustmentType),
+    formatDuringDayKind(entry.duringDayKind),
+    entry.duringDayHours !== null ? Number(entry.duringDayHours).toFixed(1) : '',
     entry.clockIn ?? '',
     entry.clockOut ?? '',
     Number(entry.hours).toFixed(2),

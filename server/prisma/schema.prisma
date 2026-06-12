@@ -24,6 +24,17 @@ enum EntryStatus {
   REJECTED
 }
 
+enum AdjustmentType {
+  ENTRY
+  EXIT
+  DURING_DAY
+}
+
+enum DuringDayKind {
+  LUNCH_EXTRA
+  DAY_DEFICIT
+}
+
 model User {
   id              String      @id @default(uuid())
   name            String
@@ -46,6 +57,9 @@ model HourEntry {
   date                   DateTime    @db.Date
   clockIn                String?
   clockOut               String?
+  adjustmentType         AdjustmentType?
+  duringDayKind          DuringDayKind?
+  duringDayHours         Decimal?    @db.Decimal(10, 2)
   withMedicalCertificate Boolean     @default(false)
   hours                  Decimal     @db.Decimal(10, 2)
   description            String

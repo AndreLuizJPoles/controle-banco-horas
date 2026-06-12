@@ -11,6 +11,8 @@ export interface User {
 export type Role = 'USER' | 'ADMIN';
 export type UserStatus = 'PENDING' | 'ACTIVE' | 'REJECTED';
 export type EntryStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type AdjustmentType = 'ENTRY' | 'EXIT' | 'DURING_DAY';
+export type DuringDayKind = 'LUNCH_EXTRA' | 'DAY_DEFICIT';
 
 export interface HourEntry {
   id: string;
@@ -18,6 +20,9 @@ export interface HourEntry {
   date: string;
   clockIn: string | null;
   clockOut: string | null;
+  adjustmentType: AdjustmentType | null;
+  duringDayKind: DuringDayKind | null;
+  duringDayHours: number | null;
   withMedicalCertificate: boolean;
   hours: number;
   description: string;
@@ -53,4 +58,41 @@ export function formatHours(hours: number): string {
 
 export function formatTime(value: string | null): string {
   return value ?? '—';
+}
+
+export function getAdjustmentTypeLabel(type: AdjustmentType | null): string {
+  if (!type) return 'Legado';
+  switch (type) {
+    case 'ENTRY':
+      return 'Entrada';
+    case 'EXIT':
+      return 'Saída';
+    case 'DURING_DAY':
+      return 'Durante o dia';
+  }
+}
+
+export function formatAdjustmentLabel(entry: HourEntry): string {
+  if (!entry.adjustmentType) {
+    if (entry.clockIn && entry.clockOut) {
+      return `${entry.clockIn} – ${entry.clockOut}`;
+    }
+    if (entry.clockIn) return entry.clockIn;
+    if (entry.clockOut) return entry.clockOut;
+    return '—';
+  }
+
+  switch (entry.adjustmentType) {
+    case 'ENTRY':
+      return entry.clockIn ?? '—';
+    case 'EXIT':
+      return entry.clockOut ?? '—';
+    case 'DURING_DAY': {
+      const amount = entry.duringDayHours ?? 0;
+      if (entry.duringDayKind === 'LUNCH_EXTRA') {
+        return `Almoço +${amount}h`;
+      }
+      return `Déficit -${amount}h`;
+    }
+  }
 }
