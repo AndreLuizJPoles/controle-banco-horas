@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../services/api';
-import type { HourEntry, HourSummary, PaginatedResponse, User } from '../types';
+import type { EntryStatus, HourEntry, HourSummary, PaginatedResponse, User } from '../types';
 import { formatAdjustmentLabel, formatHours, getAdjustmentTypeLabel } from '../types';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -11,6 +11,7 @@ import { EntryTimeline } from '../components/EntryTimeline';
 import { Input } from '../components/Input';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { SearchableSelect } from '../components/SearchableSelect';
+import { Select } from '../components/Select';
 import { Pagination, Table } from '../components/Table';
 import { useAuthStore } from '../stores/authStore';
 
@@ -35,6 +36,7 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(!isAdmin);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState<EntryStatus | ''>('');
 
   const userOptions = useMemo(
     () =>
@@ -98,6 +100,7 @@ export function DashboardPage() {
       };
       if (startDate) filterParams.startDate = startDate;
       if (endDate) filterParams.endDate = endDate;
+      if (statusFilter) filterParams.status = statusFilter;
       if (isAdmin && selectedUserId) filterParams.userId = selectedUserId;
 
       const { data } = await api.get<PaginatedResponse<HourEntry>>('/hour-entries', {
@@ -112,7 +115,7 @@ export function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, startDate, endDate, isAdmin, selectedUserId, canLoadData]);
+  }, [page, startDate, endDate, statusFilter, isAdmin, selectedUserId, canLoadData]);
 
   useEffect(() => {
     fetchEntries();
@@ -163,6 +166,20 @@ export function DashboardPage() {
                 setEndDate(e.target.value);
                 setPage(1);
               }}
+            />
+            <Select
+              label="Status"
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as EntryStatus | '');
+                setPage(1);
+              }}
+              options={[
+                { value: '', label: 'Todos' },
+                { value: 'PENDING', label: 'Pendente' },
+                { value: 'APPROVED', label: 'Aprovado' },
+                { value: 'REJECTED', label: 'Rejeitado' },
+              ]}
             />
           </div>
           {!isAdmin && (

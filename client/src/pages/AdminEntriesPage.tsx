@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import api from '../services/api';
-import type { HourEntry, HourSummary, PaginatedResponse, User } from '../types';
+import type { EntryStatus, HourEntry, HourSummary, PaginatedResponse, User } from '../types';
 import { formatAdjustmentLabel, formatHours, getAdjustmentTypeLabel } from '../types';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -27,6 +27,7 @@ export function AdminEntriesPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<EntryStatus | ''>('');
   const [actionLoading, setActionLoading] = useState(false);
   const [modal, setModal] = useState<{ entry: HourEntry; action: ActionType } | null>(null);
 
@@ -62,6 +63,7 @@ export function AdminEntriesPage() {
     try {
       const params: Record<string, string | number> = { page, limit: 10 };
       if (selectedUserId) params.userId = selectedUserId;
+      if (statusFilter) params.status = statusFilter;
 
       const { data } = await api.get<PaginatedResponse<HourEntry>>('/hour-entries', { params });
       setEntries(data.data);
@@ -71,7 +73,7 @@ export function AdminEntriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedUserId]);
+  }, [page, selectedUserId, statusFilter]);
 
   useEffect(() => {
     fetchEntries();
@@ -106,19 +108,37 @@ export function AdminEntriesPage() {
 
   return (
     <div>
-      <div className="mb-6 max-w-sm">
-        <Select
-          label="Filtrar por usuário"
-          value={selectedUserId}
-          onChange={(e) => {
-            setSelectedUserId(e.target.value);
-            setPage(1);
-          }}
-          options={[
-            { value: '', label: 'Todos os usuários' },
-            ...users.map((u) => ({ value: u.id, label: u.name })),
-          ]}
-        />
+      <div className="mb-6 flex flex-wrap gap-4">
+        <div className="max-w-sm flex-1">
+          <Select
+            label="Filtrar por usuário"
+            value={selectedUserId}
+            onChange={(e) => {
+              setSelectedUserId(e.target.value);
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: 'Todos os usuários' },
+              ...users.map((u) => ({ value: u.id, label: u.name })),
+            ]}
+          />
+        </div>
+        <div className="max-w-xs flex-1">
+          <Select
+            label="Filtrar por status"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as EntryStatus | '');
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: 'Todos' },
+              { value: 'PENDING', label: 'Pendente' },
+              { value: 'APPROVED', label: 'Aprovado' },
+              { value: 'REJECTED', label: 'Rejeitado' },
+            ]}
+          />
+        </div>
       </div>
 
       {selectedUserId ? (

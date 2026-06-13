@@ -10,7 +10,7 @@ function paramId(value: string | string[]): string {
 
 export async function listHourEntries(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { userId, startDate, endDate, page, limit } =
+    const { userId, startDate, endDate, page, limit, status } =
       (req.validated?.query as HourEntryQueryInput) ?? {};
 
     const result = await hourEntryService.listHourEntries({
@@ -21,6 +21,7 @@ export async function listHourEntries(req: Request, res: Response, next: NextFun
       endDate,
       page,
       limit,
+      status,
     });
     res.json(result);
   } catch (error) {

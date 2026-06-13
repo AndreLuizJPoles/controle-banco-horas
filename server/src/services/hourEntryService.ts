@@ -84,6 +84,7 @@ export async function listHourEntries(params: {
   endDate?: string;
   page?: number;
   limit?: number;
+  status?: EntryStatus;
 }) {
   const page = params.page ?? 1;
   const limit = params.limit ?? 10;
@@ -105,6 +106,10 @@ export async function listHourEntries(params: {
     if (params.endDate) {
       where.date.lte = new Date(params.endDate);
     }
+  }
+
+  if (params.status) {
+    where.status = params.status;
   }
 
   const [entries, total] = await Promise.all([

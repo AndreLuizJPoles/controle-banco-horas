@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EntryStatus } from '@prisma/client';
 import { timeSchema } from './time';
 
 const entryBase = {
@@ -36,6 +37,7 @@ export const hourEntryQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(100).optional(),
   userId: z.string().uuid().optional(),
+  status: z.nativeEnum(EntryStatus).optional(),
 });
 
 export type CreateEntryInput = z.infer<typeof createEntrySchema>;
