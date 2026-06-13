@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { Button } from './Button';
+import { ConfirmModal } from './ConfirmModal';
 
 interface LayoutProps {
   children: ReactNode;
@@ -23,6 +24,8 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
 
   const isAdmin = user?.role === 'ADMIN';
 
@@ -42,8 +45,14 @@ export function Layout({ children }: LayoutProps) {
   const links = isAdmin ? [...adminLinks] : userLinks;
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    setLogoutLoading(true);
+    try {
+      await logout();
+      navigate('/login');
+    } finally {
+      setLogoutLoading(false);
+      setLogoutModalOpen(false);
+    }
   };
 
   const NavLinks = () => (
@@ -101,7 +110,12 @@ export function Layout({ children }: LayoutProps) {
 
         <div className="border-t border-slate-800 p-4">
           <p className="mb-2 truncate text-sm text-slate-400">{user?.name}</p>
-          <Button variant="ghost" size="sm" className="w-full text-slate-300" onClick={handleLogout}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-slate-300"
+            onClick={() => setLogoutModalOpen(true)}
+          >
             <LogOut size={16} />
             Sair
           </Button>
@@ -124,6 +138,18 @@ export function Layout({ children }: LayoutProps) {
 
         <main className="p-4 lg:p-8">{children}</main>
       </div>
+
+      <ConfirmModal
+        open={logoutModalOpen}
+        title="Sair da conta"
+        message="Deseja realmente sair do sistema?"
+        confirmLabel="Sair"
+        cancelLabel="Cancelar"
+        variant="danger"
+        loading={logoutLoading}
+        onConfirm={handleLogout}
+        onCancel={() => setLogoutModalOpen(false)}
+      />
     </div>
   );
 }
