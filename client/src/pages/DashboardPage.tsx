@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../services/api';
-import type { EntryStatus, HourEntry, HourSummary, PaginatedResponse, User } from '../types';
+import type { EntryStatus, HourEntry, HourSummary, PaginatedResponse, User, UserStatus } from '../types';
 import { formatAdjustmentLabel, formatHours, getAdjustmentTypeLabel } from '../types';
 import { Badge } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -37,11 +37,12 @@ export function DashboardPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<EntryStatus | ''>('');
+  const [userStatusFilter, setUserStatusFilter] = useState<UserStatus>('ACTIVE');
 
   const userOptions = useMemo(
     () =>
       users
-        .filter((u) => u.status === 'ACTIVE' && u.role === 'USER')
+        .filter((u) => u.role === 'USER')
         .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
         .map((u) => ({ value: u.id, label: u.name })),
     [users],
@@ -53,10 +54,10 @@ export function DashboardPage() {
     if (!isAdmin) return;
 
     api
-      .get<{ users: User[] }>('/users')
+      .get<{ users: User[] }>('/users', { params: { status: userStatusFilter } })
       .then(({ data }) => setUsers(data.users))
       .catch(() => toast.error('Erro ao carregar usuários'));
-  }, [isAdmin]);
+  }, [isAdmin, userStatusFilter]);
 
   useEffect(() => {
     if (!canLoadData) {
@@ -124,17 +125,34 @@ export function DashboardPage() {
   return (
     <div>
       {isAdmin && (
-        <div className="mb-6 max-w-sm">
-          <SearchableSelect
-            label="Usuário"
-            value={selectedUserId}
-            onChange={(userId) => {
-              setSelectedUserId(userId);
-              setPage(1);
-            }}
-            options={userOptions}
-            placeholder="Pesquisar usuário..."
-          />
+        <div className="mb-6 flex flex-wrap items-end gap-4">
+          <div className="max-w-xs">
+            <Select
+              label="Usuários"
+              value={userStatusFilter}
+              onChange={(e) => {
+                setUserStatusFilter(e.target.value as UserStatus);
+                setSelectedUserId('');
+                setPage(1);
+              }}
+              options={[
+                { value: 'ACTIVE', label: 'Aprovados' },
+                { value: 'REJECTED', label: 'Rejeitados' },
+              ]}
+            />
+          </div>
+          <div className="max-w-sm flex-1">
+            <SearchableSelect
+              label="Selecionar usuário"
+              value={selectedUserId}
+              onChange={(userId) => {
+                setSelectedUserId(userId);
+                setPage(1);
+              }}
+              options={userOptions}
+              placeholder="Pesquisar usuário..."
+            />
+          </div>
         </div>
       )}
 

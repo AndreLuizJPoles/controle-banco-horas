@@ -1,17 +1,31 @@
 import { Request, Response, NextFunction } from 'express';
 import { UserStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { AppError } from './errorHandler';
 
-export function requireActiveUser(req: Request, _res: Response, next: NextFunction): void {
-  if (!req.user) {
-    next(new AppError('Não autenticado', 401));
-    return;
-  }
+export async function requireActiveUser(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!req.user) {
+      next(new AppError('Não autenticado', 401));
+      return;
+    }
 
-  if (req.user.status !== UserStatus.ACTIVE) {
-    next(new AppError('Conta não ativa', 403));
-    return;
-  }
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { status: true },
+    });
 
-  next();
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      next(new AppError('Conta não ativa', 403));
+      return;
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
 }

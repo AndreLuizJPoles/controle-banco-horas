@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { UserStatus } from '@prisma/client';
+import { Role, UserStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middlewares/errorHandler';
 import type { AuthUser } from './authService';
@@ -79,15 +79,27 @@ export async function approveUser(id: string): Promise<SerializedUser> {
   return serializeUser(updated);
 }
 
-export async function rejectUser(id: string): Promise<SerializedUser> {
+export async function rejectUser(id: string, requesterId: string): Promise<SerializedUser> {
+  if (id === requesterId) {
+    throw new AppError('Não é possível rejeitar a própria conta', 400);
+  }
+
   const user = await prisma.user.findUnique({ where: { id } });
 
   if (!user) {
     throw new AppError('Usuário não encontrado', 404);
   }
 
-  if (user.status !== UserStatus.PENDING) {
-    throw new AppError('Usuário não está pendente', 400);
+  if (user.role === Role.ADMIN) {
+    throw new AppError('Não é possível rejeitar um administrador', 400);
+  }
+
+  if (user.status === UserStatus.REJECTED) {
+    throw new AppError('Usuário já está rejeitado', 400);
+  }
+
+  if (user.status !== UserStatus.PENDING && user.status !== UserStatus.ACTIVE) {
+    throw new AppError('Usuário não pode ser rejeitado', 400);
   }
 
   const updated = await prisma.user.update({

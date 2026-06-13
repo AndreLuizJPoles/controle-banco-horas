@@ -34,7 +34,9 @@ export function AdminEntriesPage() {
   useEffect(() => {
     api
       .get<{ users: User[] }>('/users')
-      .then(({ data }) => setUsers(data.users.filter((u) => u.status === 'ACTIVE')))
+      .then(({ data }) =>
+        setUsers(data.users.filter((u) => u.status === 'ACTIVE' && u.role === 'USER')),
+      )
       .catch(() => toast.error('Erro ao carregar usuários'));
   }, []);
 

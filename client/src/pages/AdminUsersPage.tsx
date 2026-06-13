@@ -84,12 +84,26 @@ export function AdminUsersPage() {
             {
               key: 'actions',
               header: 'Ações',
-              render: (u) =>
-                u.status === 'PENDING' ? (
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => setModal({ user: u, action: 'approve' })}>
-                      Aprovar
-                    </Button>
+              render: (u) => {
+                if (u.status === 'PENDING') {
+                  return (
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => setModal({ user: u, action: 'approve' })}>
+                        Aprovar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => setModal({ user: u, action: 'reject' })}
+                      >
+                        Rejeitar
+                      </Button>
+                    </div>
+                  );
+                }
+
+                if (u.status === 'ACTIVE' && u.role === 'USER') {
+                  return (
                     <Button
                       size="sm"
                       variant="danger"
@@ -97,10 +111,11 @@ export function AdminUsersPage() {
                     >
                       Rejeitar
                     </Button>
-                  </div>
-                ) : (
-                  <span className="text-slate-400">—</span>
-                ),
+                  );
+                }
+
+                return <span className="text-slate-400">—</span>;
+              },
             },
           ]}
         />
@@ -109,7 +124,13 @@ export function AdminUsersPage() {
       <ConfirmModal
         open={!!modal}
         title={modal?.action === 'approve' ? 'Aprovar usuário' : 'Rejeitar usuário'}
-        message={`Deseja ${modal?.action === 'approve' ? 'aprovar' : 'rejeitar'} o usuário ${modal?.user.name}?`}
+        message={
+          modal?.action === 'approve'
+            ? `Deseja aprovar o usuário ${modal.user.name}?`
+            : modal?.user.status === 'ACTIVE'
+              ? `Deseja rejeitar o usuário ${modal?.user.name}? Ele será removido das listas, mas os lançamentos permanecerão no sistema.`
+              : `Deseja rejeitar o usuário ${modal?.user.name}?`
+        }
         variant={modal?.action === 'reject' ? 'danger' : 'primary'}
         loading={actionLoading}
         onConfirm={handleAction}

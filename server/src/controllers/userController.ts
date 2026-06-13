@@ -45,7 +45,7 @@ export async function approveUser(req: Request, res: Response, next: NextFunctio
 
 export async function rejectUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await userService.rejectUser(paramId(req.params.id));
+    const user = await userService.rejectUser(paramId(req.params.id), req.user!.userId);
     res.json({ user });
   } catch (error) {
     next(error);
