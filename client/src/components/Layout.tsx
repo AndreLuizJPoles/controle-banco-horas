@@ -33,6 +33,7 @@ export function Layout({ children }: LayoutProps) {
   ];
 
   const adminLinks = [
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/admin/users', label: 'Usuários', icon: Users },
     { to: '/admin/entries', label: 'Lançamentos', icon: Clock },
     { to: '/admin/export', label: 'Exportação', icon: Download },
